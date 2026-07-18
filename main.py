@@ -12,7 +12,9 @@ from kivy.uix.gridlayout import GridLayout
 from database import (
     init_db, add_student, get_all_students, get_student_by_id, update_student, delete_student,
     init_batches_table, add_batch, get_all_batches, delete_batch,
-    add_batch_id_column, assign_student_to_batch, get_students_by_batch, get_batch_name
+    add_batch_id_column, assign_student_to_batch, get_students_by_batch, get_batch_name,
+    init_attendance_table, mark_attendance, get_attendance_for_batch_on_date,
+    get_attendance_history, get_attendance_percentage
 )
 
 class HomeScreen(Screen):
@@ -39,6 +41,10 @@ class HomeScreen(Screen):
         view_batches_btn.bind(on_press=self.go_to_view_batches)
         layout.add_widget(view_batches_btn)
 
+        take_attendance_btn = Button(text="Take Attendance")
+        take_attendance_btn.bind(on_press=self.go_to_take_attendance)
+        layout.add_widget(take_attendance_btn)
+
         self.add_widget(layout)
 
     def go_to_add_student(self, instance):
@@ -52,6 +58,9 @@ class HomeScreen(Screen):
 
     def go_to_view_batches(self, instance):
         self.manager.current = "view_batches"
+
+    def go_to_take_attendance(self, instance):
+        self.manager.current = "take_attendance"
 
 
 class AddStudentScreen(Screen):
@@ -276,6 +285,160 @@ class AssignBatchScreen(Screen):
     def go_back(self, instance):
         self.manager.current = "view_students"
 
+from datetime import date
+
+class TakeAttendanceScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.batch_name_to_id = {}
+        self.selected_batch_id = None
+        self.attendance_status = {}  # {student_id: "Present"/"Absent"}
+        self.status_buttons = {}     # {student_id: button widget}
+
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.batch_spinner = Spinner(text="Select a Batch", values=[])
+        self.layout.add_widget(self.batch_spinner)
+
+        self.date_input = TextInput(text=str(date.today()), hint_text="Date (YYYY-MM-DD)", multiline=False)
+        self.layout.add_widget(self.date_input)
+
+        load_btn = Button(text="Load Students", size_hint_y=None, height=50)
+        load_btn.bind(on_press=self.load_students_for_batch)
+        self.layout.add_widget(load_btn)
+
+        self.students_grid = GridLayout(cols=2, size_hint_y=None, spacing=5, padding=5)
+        self.students_grid.bind(minimum_height=self.students_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.students_grid)
+        self.layout.add_widget(scroll)
+
+        self.message_label = Label(text="", size_hint_y=None, height=30)
+        self.layout.add_widget(self.message_label)
+
+        save_btn = Button(text="Save Attendance", size_hint_y=None, height=50)
+        save_btn.bind(on_press=self.save_attendance)
+        self.layout.add_widget(save_btn)
+
+        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        batches = get_all_batches()
+        self.batch_name_to_id = {batch[1]: batch[0] for batch in batches}
+        self.batch_spinner.values = list(self.batch_name_to_id.keys())
+        self.message_label.text = ""
+
+    def load_students_for_batch(self, instance):
+        selected_batch_name = self.batch_spinner.text
+        if selected_batch_name not in self.batch_name_to_id:
+            self.message_label.text = "Please select a valid batch first!"
+            return
+
+        self.selected_batch_id = self.batch_name_to_id[selected_batch_name]
+        selected_date = self.date_input.text.strip()
+
+        students = get_students_by_batch(self.selected_batch_id)
+        existing_attendance = get_attendance_for_batch_on_date(self.selected_batch_id, selected_date)
+
+        self.students_grid.clear_widgets()
+        self.attendance_status = {}
+        self.status_buttons = {}
+
+        if not students:
+            self.students_grid.add_widget(Label(text="No students in this batch.", size_hint_y=None, height=40))
+            self.students_grid.add_widget(Label(text="", size_hint_y=None, height=40))
+            return
+
+        for student in students:
+            student_id = student[0]
+            student_name = student[1]
+
+            self.students_grid.add_widget(Label(text=student_name, size_hint_y=None, height=40))
+
+            current_status = existing_attendance.get(student_id, "Present")
+            self.attendance_status[student_id] = current_status
+
+            status_btn = Button(text=current_status, size_hint_y=None, height=40)
+            status_btn.bind(on_press=lambda instance, sid=student_id: self.toggle_status(sid))
+            self.status_buttons[student_id] = status_btn
+            self.students_grid.add_widget(status_btn)
+
+        self.message_label.text = f"Loaded {len(students)} student(s). Tap a status to toggle."
+
+    def toggle_status(self, student_id):
+        current = self.attendance_status[student_id]
+        new_status = "Absent" if current == "Present" else "Present"
+        self.attendance_status[student_id] = new_status
+        self.status_buttons[student_id].text = new_status
+
+    def save_attendance(self, instance):
+        if not self.selected_batch_id or not self.attendance_status:
+            self.message_label.text = "Load a batch's students first!"
+            return
+
+        selected_date = self.date_input.text.strip()
+        for student_id, status in self.attendance_status.items():
+            mark_attendance(student_id, self.selected_batch_id, selected_date, status)
+
+        self.message_label.text = f"Attendance saved for {selected_date}!"
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
+class AttendanceHistoryScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.student_label = Label(text="Attendance History for: ", size_hint_y=None, height=40)
+        self.layout.add_widget(self.student_label)
+
+        self.percentage_label = Label(text="", size_hint_y=None, height=40, bold=True)
+        self.layout.add_widget(self.percentage_label)
+
+        self.history_grid = GridLayout(cols=2, size_hint_y=None, spacing=5, padding=5)
+        self.history_grid.bind(minimum_height=self.history_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.history_grid)
+        self.layout.add_widget(scroll)
+
+        back_btn = Button(text="Back to View Students", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def load_history(self, student_id):
+        student = get_student_by_id(student_id)
+        _, name, student_class, joining_date, contact, status, batch_id = student
+        self.student_label.text = f"Attendance History for: {name} ({student_class})"
+
+        percentage = get_attendance_percentage(student_id)
+        self.percentage_label.text = f"Overall Attendance: {percentage}%"
+
+        self.history_grid.clear_widgets()
+        self.history_grid.add_widget(Label(text="Date", bold=True, size_hint_y=None, height=40))
+        self.history_grid.add_widget(Label(text="Status", bold=True, size_hint_y=None, height=40))
+
+        history = get_attendance_history(student_id)
+        if not history:
+            self.history_grid.add_widget(Label(text="No records yet.", size_hint_y=None, height=40))
+            self.history_grid.add_widget(Label(text="", size_hint_y=None, height=40))
+            return
+
+        for record_date, record_status in history:
+            self.history_grid.add_widget(Label(text=record_date, size_hint_y=None, height=40))
+            self.history_grid.add_widget(Label(text=record_status, size_hint_y=None, height=40))
+
+    def go_back(self, instance):
+        self.manager.current = "view_students"
+
 
 class ViewBatchesScreen(Screen):
     def __init__(self, **kwargs):
@@ -340,7 +503,7 @@ class ViewStudentsScreen(Screen):
         self.layout = BoxLayout(orientation="vertical")
 
         self.students_grid = GridLayout(
-            cols=9,
+            cols=10,
             size_hint_y=None,
             spacing=5,
             padding=5,
@@ -353,7 +516,8 @@ class ViewStudentsScreen(Screen):
                 5: 100,  # Batch
                 6: 70,   # Edit
                 7: 130,  # Assign Batch
-                8: 80,   # Delete
+                8: 90,   # History
+                9: 80,   # Delete
             }
         )
         self.students_grid.bind(minimum_height=self.students_grid.setter("height"))
@@ -378,7 +542,7 @@ class ViewStudentsScreen(Screen):
     def load_students(self, instance=None):
         self.students_grid.clear_widgets()
 
-        for header in ["Name", "Class", "Joining Date", "Contact", "Status", "Batch", "", "", ""]:
+        for header in ["Name", "Class", "Joining Date", "Contact", "Status", "Batch", "", "", "", ""]:
             self.students_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
 
         students = get_all_students()
@@ -401,6 +565,10 @@ class ViewStudentsScreen(Screen):
             assign_btn.bind(on_press=lambda instance, sid=student_id: self.assign_batch(sid))
             self.students_grid.add_widget(assign_btn)
 
+            history_btn = Button(text="History", size_hint_y=None, height=40)
+            history_btn.bind(on_press=lambda instance, sid=student_id: self.view_history(sid))
+            self.students_grid.add_widget(history_btn)
+
             delete_btn = Button(text="Delete", size_hint_y=None, height=40)
             delete_btn.bind(on_press=lambda instance, sid=student_id: self.confirm_delete(sid))
             self.students_grid.add_widget(delete_btn)
@@ -422,6 +590,11 @@ class ViewStudentsScreen(Screen):
         assign_screen.load_student_for_assignment(student_id)
         self.manager.current = "assign_batch"
 
+    def view_history(self, student_id):
+        history_screen = self.manager.get_screen("attendance_history")
+        history_screen.load_history(student_id)
+        self.manager.current = "attendance_history"
+
 
 class ZeroToInfinityApp(App):
     def build(self):
@@ -429,6 +602,7 @@ class ZeroToInfinityApp(App):
         init_db()
         init_batches_table()
         add_batch_id_column()
+        init_attendance_table()
         sm = ScreenManager()
         sm.add_widget(HomeScreen(name="home"))
         sm.add_widget(AddStudentScreen(name="add_student"))
@@ -437,6 +611,8 @@ class ZeroToInfinityApp(App):
         sm.add_widget(AddBatchScreen(name="add_batch"))
         sm.add_widget(ViewBatchesScreen(name="view_batches"))
         sm.add_widget(AssignBatchScreen(name="assign_batch"))
+        sm.add_widget(TakeAttendanceScreen(name="take_attendance"))
+        sm.add_widget(AttendanceHistoryScreen(name="attendance_history"))
 
         return sm
 

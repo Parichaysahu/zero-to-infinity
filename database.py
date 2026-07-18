@@ -142,3 +142,71 @@ def get_batch_name(batch_id):
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else "Not Assigned"
+def init_attendance_table():
+    """Creates the attendance table if it doesn't already exist."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            batch_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def mark_attendance(student_id, batch_id, date, status):
+    """Saves or updates a student's attendance for a specific date."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    # Check if attendance for this student on this date already exists
+    cursor.execute("""
+        SELECT id FROM attendance WHERE student_id = ? AND date = ?
+    """, (student_id, date))
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute("""
+            UPDATE attendance SET status = ?, batch_id = ? WHERE id = ?
+        """, (status, batch_id, existing[0]))
+    else:
+        cursor.execute("""
+            INSERT INTO attendance (student_id, batch_id, date, status)
+            VALUES (?, ?, ?, ?)
+        """, (student_id, batch_id, date, status))
+
+    conn.commit()
+    conn.close()
+
+def get_attendance_for_batch_on_date(batch_id, date):
+    """Returns a dict of {student_id: status} for a batch on a specific date."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT student_id, status FROM attendance WHERE batch_id = ? AND date = ?
+    """, (batch_id, date))
+    rows = cursor.fetchall()
+    conn.close()
+    return {row[0]: row[1] for row in rows}
+
+def get_attendance_history(student_id):
+    """Returns all attendance records for a student, most recent first."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT date, status FROM attendance WHERE student_id = ? ORDER BY date DESC
+    """, (student_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_attendance_percentage(student_id):
+    """Calculates the percentage of days marked Present for a student."""
+    history = get_attendance_history(student_id)
+    if not history:
+        return 0
+    present_count = sum(1 for date, status in history if status == "Present")
+    return round((present_count / len(history)) * 100, 1)
