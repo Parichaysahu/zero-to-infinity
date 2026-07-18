@@ -18,7 +18,8 @@ from database import (
     init_fees_table, add_fee_record, get_fees_for_student, record_payment, get_total_pending_dues,
     init_exams_table, add_exam, get_all_exams, get_exam_by_id,
     init_marks_table, record_marks, get_marks_for_exam, get_progress_for_student,
-    get_total_students_count, get_total_batches_count, get_total_fees_collected, get_total_pending_dues_all, get_today_attendance_summary, get_average_marks_percentage
+    get_total_students_count, get_total_batches_count, get_total_fees_collected, get_total_pending_dues_all, get_today_attendance_summary, get_average_marks_percentage,
+    init_expenses_table, add_expense, get_all_expenses, delete_expense, get_total_expenses
 )
 
 class HomeScreen(Screen):
@@ -47,6 +48,9 @@ class HomeScreen(Screen):
             ("Add Exam", "add_exam"),
             ("Record Marks", "record_marks"),
             ("Monthly Report", "monthly_report"),
+            ("Add Expense", "add_expense"),
+            ("View Expenses", "view_expenses"),
+            ("Timetable", "timetable"),
         ]
 
         for label_text, screen_name in nav_buttons:
@@ -685,6 +689,115 @@ class ViewBatchesScreen(Screen):
     def go_back(self, instance):
         self.manager.current = "home"
 
+class AddExpenseScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.description_input = TextInput(hint_text="Description (e.g. Rent, Stationery)", multiline=False)
+        self.layout.add_widget(self.description_input)
+
+        self.amount_input = TextInput(hint_text="Amount", multiline=False, input_filter="float")
+        self.layout.add_widget(self.amount_input)
+
+        self.date_input = TextInput(text=str(date.today()), hint_text="Date (YYYY-MM-DD)", multiline=False)
+        self.layout.add_widget(self.date_input)
+
+        self.category_input = TextInput(hint_text="Category (e.g. Rent, Utilities, Supplies)", multiline=False)
+        self.layout.add_widget(self.category_input)
+
+        self.message_label = Label(text="")
+        self.layout.add_widget(self.message_label)
+
+        save_btn = Button(text="Save Expense")
+        save_btn.bind(on_press=self.save_expense)
+        self.layout.add_widget(save_btn)
+
+        back_btn = Button(text="Back to Home")
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def save_expense(self, instance):
+        description = self.description_input.text.strip()
+        amount_text = self.amount_input.text.strip()
+        expense_date = self.date_input.text.strip()
+        category = self.category_input.text.strip()
+
+        if not description or not amount_text or not category:
+            self.message_label.text = "All fields are required!"
+            return
+
+        add_expense(description, float(amount_text), expense_date, category)
+        self.message_label.text = f"Saved: {description}"
+
+        self.description_input.text = ""
+        self.amount_input.text = ""
+        self.category_input.text = ""
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
+class ViewExpensesScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical")
+
+        self.summary_label = Label(text="", size_hint_y=None, height=40, bold=True)
+        self.layout.add_widget(self.summary_label)
+
+        self.expenses_grid = GridLayout(
+            cols=5,
+            size_hint_y=None,
+            spacing=5,
+            padding=5,
+            cols_minimum={0: 200, 1: 100, 2: 110, 3: 130, 4: 80}
+        )
+        self.expenses_grid.bind(minimum_height=self.expenses_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.expenses_grid)
+        self.layout.add_widget(scroll)
+
+        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        self.load_expenses()
+
+    def load_expenses(self):
+        self.expenses_grid.clear_widgets()
+
+        for header in ["Description", "Amount", "Date", "Category", ""]:
+            self.expenses_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+
+        expenses = get_all_expenses()
+        for expense_id, description, amount, expense_date, category in expenses:
+            self.expenses_grid.add_widget(Label(text=description, size_hint_y=None, height=40))
+            self.expenses_grid.add_widget(Label(text=str(amount), size_hint_y=None, height=40))
+            self.expenses_grid.add_widget(Label(text=expense_date, size_hint_y=None, height=40))
+            self.expenses_grid.add_widget(Label(text=category, size_hint_y=None, height=40))
+
+            delete_btn = Button(text="Delete", size_hint_y=None, height=40)
+            delete_btn.bind(on_press=lambda instance, eid=expense_id: self.delete_expense_action(eid))
+            self.expenses_grid.add_widget(delete_btn)
+
+        total_expenses = get_total_expenses()
+        total_fees = get_total_fees_collected()
+        profit = round(total_fees - total_expenses, 2)
+        self.summary_label.text = f"Fees Collected: ₹{total_fees}  |  Expenses: ₹{total_expenses}  |  Profit: ₹{profit}"
+
+    def delete_expense_action(self, expense_id):
+        delete_expense(expense_id)
+        self.load_expenses()
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
 class ViewStudentsScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -927,6 +1040,48 @@ class AddExamScreen(Screen):
     def go_back(self, instance):
         self.manager.current = "home"
 
+class TimetableScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical")
+
+        self.timetable_grid = GridLayout(
+            cols=3,
+            size_hint_y=None,
+            spacing=5,
+            padding=5,
+            cols_minimum={0: 250, 1: 150, 2: 250}
+        )
+        self.timetable_grid.bind(minimum_height=self.timetable_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.timetable_grid)
+        self.layout.add_widget(scroll)
+
+        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        self.load_timetable()
+
+    def load_timetable(self):
+        self.timetable_grid.clear_widgets()
+
+        for header in ["Batch Name", "Subject", "Schedule"]:
+            self.timetable_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+
+        batches = get_all_batches()
+        for batch_id, batch_name, subject, schedule in batches:
+            self.timetable_grid.add_widget(Label(text=batch_name, size_hint_y=None, height=40))
+            self.timetable_grid.add_widget(Label(text=subject, size_hint_y=None, height=40))
+            self.timetable_grid.add_widget(Label(text=schedule, size_hint_y=None, height=40))
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
 class RecordMarksScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1085,6 +1240,7 @@ class ZeroToInfinityApp(App):
         init_attendance_table()
         init_fees_table()
         init_exams_table()
+        init_expenses_table()
         init_marks_table()
         sm = ScreenManager()
         sm.add_widget(HomeScreen(name="home"))
@@ -1102,6 +1258,9 @@ class ZeroToInfinityApp(App):
         sm.add_widget(RecordMarksScreen(name="record_marks"))
         sm.add_widget(StudentProgressScreen(name="student_progress"))
         sm.add_widget(MonthlyReportScreen(name="monthly_report"))
+        sm.add_widget(AddExpenseScreen(name="add_expense"))
+        sm.add_widget(ViewExpensesScreen(name="view_expenses"))
+        sm.add_widget(TimetableScreen(name="timetable"))
 
         return sm
 

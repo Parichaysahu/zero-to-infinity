@@ -423,3 +423,51 @@ def get_average_marks_percentage(student_id):
     if not percentages:
         return 0
     return round(sum(percentages) / len(percentages), 1)
+
+def init_expenses_table():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT NOT NULL,
+            amount REAL NOT NULL,
+            date TEXT NOT NULL,
+            category TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def add_expense(description, amount, expense_date, category):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO expenses (description, amount, date, category)
+        VALUES (?, ?, ?, ?)
+    """, (description, amount, expense_date, category))
+    conn.commit()
+    conn.close()
+
+def get_all_expenses():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM expenses ORDER BY date DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def delete_expense(expense_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+    conn.commit()
+    conn.close()
+
+def get_total_expenses():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT SUM(amount) FROM expenses")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return round(total, 2) if total else 0
