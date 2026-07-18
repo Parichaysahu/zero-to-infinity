@@ -413,3 +413,13 @@ def get_today_attendance_summary():
     absent = cursor.fetchone()[0]
     conn.close()
     return present, absent
+
+def get_average_marks_percentage(student_id):
+    """Returns the average percentage score across all exams for a student."""
+    progress = get_progress_for_student(student_id)
+    if not progress:
+        return 0
+    percentages = [(marks / max_marks) * 100 for _, _, _, marks, max_marks in progress if max_marks > 0]
+    if not percentages:
+        return 0
+    return round(sum(percentages) / len(percentages), 1)

@@ -18,7 +18,7 @@ from database import (
     init_fees_table, add_fee_record, get_fees_for_student, record_payment, get_total_pending_dues,
     init_exams_table, add_exam, get_all_exams, get_exam_by_id,
     init_marks_table, record_marks, get_marks_for_exam, get_progress_for_student,
-    get_total_students_count, get_total_batches_count, get_total_fees_collected, get_total_pending_dues_all, get_today_attendance_summary
+    get_total_students_count, get_total_batches_count, get_total_fees_collected, get_total_pending_dues_all, get_today_attendance_summary, get_average_marks_percentage
 )
 
 class HomeScreen(Screen):
@@ -46,6 +46,7 @@ class HomeScreen(Screen):
             ("View Fees", "view_fees"),
             ("Add Exam", "add_exam"),
             ("Record Marks", "record_marks"),
+            ("Monthly Report", "monthly_report"),
         ]
 
         for label_text, screen_name in nav_buttons:
@@ -792,6 +793,71 @@ class ViewStudentsScreen(Screen):
         progress_screen.load_progress(student_id)
         self.manager.current = "student_progress"
 
+class MonthlyReportScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.student_name_to_id = {}
+
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.student_spinner = Spinner(text="Select a Student", values=[])
+        self.layout.add_widget(self.student_spinner)
+
+        load_btn = Button(text="Generate Report", size_hint_y=None, height=50)
+        load_btn.bind(on_press=self.generate_report)
+        self.layout.add_widget(load_btn)
+
+        self.report_grid = GridLayout(cols=2, size_hint_y=None, spacing=8, padding=10)
+        self.report_grid.bind(minimum_height=self.report_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.report_grid)
+        self.layout.add_widget(scroll)
+
+        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        students = get_all_students()
+        self.student_name_to_id = {student[1]: student[0] for student in students}
+        self.student_spinner.values = list(self.student_name_to_id.keys())
+
+    def generate_report(self, instance):
+        selected_name = self.student_spinner.text
+        if selected_name not in self.student_name_to_id:
+            return
+
+        student_id = self.student_name_to_id[selected_name]
+        student = get_student_by_id(student_id)
+        _, name, student_class, joining_date, contact, status, batch_id = student
+        batch_name = get_batch_name(batch_id)
+
+        attendance_pct = get_attendance_percentage(student_id)
+        total_pending = get_total_pending_dues(student_id)
+        avg_marks_pct = get_average_marks_percentage(student_id)
+
+        self.report_grid.clear_widgets()
+
+        rows = [
+            ("Name", name),
+            ("Class", student_class),
+            ("Batch", batch_name),
+            ("Status", status),
+            ("Attendance %", f"{attendance_pct}%"),
+            ("Pending Dues", f"₹{total_pending}"),
+            ("Average Exam Score", f"{avg_marks_pct}%"),
+        ]
+
+        for label_text, value_text in rows:
+            self.report_grid.add_widget(Label(text=label_text, bold=True, size_hint_y=None, height=40))
+            self.report_grid.add_widget(Label(text=value_text, size_hint_y=None, height=40))
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
 class AddExamScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1035,6 +1101,7 @@ class ZeroToInfinityApp(App):
         sm.add_widget(AddExamScreen(name="add_exam"))
         sm.add_widget(RecordMarksScreen(name="record_marks"))
         sm.add_widget(StudentProgressScreen(name="student_progress"))
+        sm.add_widget(MonthlyReportScreen(name="monthly_report"))
 
         return sm
 
