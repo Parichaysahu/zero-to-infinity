@@ -210,3 +210,59 @@ def get_attendance_percentage(student_id):
         return 0
     present_count = sum(1 for date, status in history if status == "Present")
     return round((present_count / len(history)) * 100, 1)
+
+def init_fees_table():
+    """Creates the fees table if it doesn't already exist."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            amount_due REAL NOT NULL,
+            amount_paid REAL NOT NULL DEFAULT 0,
+            due_date TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def add_fee_record(student_id, description, amount_due, due_date):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO fees (student_id, description, amount_due, amount_paid, due_date)
+        VALUES (?, ?, ?, 0, ?)
+    """, (student_id, description, amount_due, due_date))
+    conn.commit()
+    conn.close()
+
+def get_fees_for_student(student_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, description, amount_due, amount_paid, due_date
+        FROM fees WHERE student_id = ? ORDER BY due_date DESC
+    """, (student_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def record_payment(fee_id, payment_amount):
+    """Adds a payment to an existing fee record's amount_paid."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT amount_paid FROM fees WHERE id = ?", (fee_id,))
+    row = cursor.fetchone()
+    if row:
+        new_amount_paid = row[0] + payment_amount
+        cursor.execute("UPDATE fees SET amount_paid = ? WHERE id = ?", (new_amount_paid, fee_id))
+        conn.commit()
+    conn.close()
+
+def get_total_pending_dues(student_id):
+    """Returns total pending amount (due - paid) across all fee records for a student."""
+    fees = get_fees_for_student(student_id)
+    total_pending = sum(amount_due - amount_paid for _, _, amount_due, amount_paid, _ in fees)
+    return round(total_pending, 2)

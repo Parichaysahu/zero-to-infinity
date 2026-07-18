@@ -14,7 +14,8 @@ from database import (
     init_batches_table, add_batch, get_all_batches, delete_batch,
     add_batch_id_column, assign_student_to_batch, get_students_by_batch, get_batch_name,
     init_attendance_table, mark_attendance, get_attendance_for_batch_on_date,
-    get_attendance_history, get_attendance_percentage
+    get_attendance_history, get_attendance_percentage,
+    init_fees_table, add_fee_record, get_fees_for_student, record_payment, get_total_pending_dues
 )
 
 class HomeScreen(Screen):
@@ -45,6 +46,14 @@ class HomeScreen(Screen):
         take_attendance_btn.bind(on_press=self.go_to_take_attendance)
         layout.add_widget(take_attendance_btn)
 
+        add_fee_btn = Button(text="Add Fee Record")
+        add_fee_btn.bind(on_press=self.go_to_add_fee)
+        layout.add_widget(add_fee_btn)
+
+        view_fees_btn = Button(text="View Fees")
+        view_fees_btn.bind(on_press=self.go_to_view_fees)
+        layout.add_widget(view_fees_btn)
+
         self.add_widget(layout)
 
     def go_to_add_student(self, instance):
@@ -61,6 +70,12 @@ class HomeScreen(Screen):
 
     def go_to_take_attendance(self, instance):
         self.manager.current = "take_attendance"
+
+    def go_to_add_fee(self, instance):
+        self.manager.current = "add_fee"
+
+    def go_to_view_fees(self, instance):
+        self.manager.current = "view_fees"
 
 
 class AddStudentScreen(Screen):
@@ -439,6 +454,170 @@ class AttendanceHistoryScreen(Screen):
     def go_back(self, instance):
         self.manager.current = "view_students"
 
+class AddFeeScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.student_name_to_id = {}
+
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.student_spinner = Spinner(text="Select a Student", values=[])
+        self.layout.add_widget(self.student_spinner)
+
+        self.description_input = TextInput(hint_text="Description (e.g. July 2026 Tuition)", multiline=False)
+        self.layout.add_widget(self.description_input)
+
+        self.amount_input = TextInput(hint_text="Amount Due", multiline=False, input_filter="float")
+        self.layout.add_widget(self.amount_input)
+
+        self.due_date_input = TextInput(hint_text="Due Date (YYYY-MM-DD)", multiline=False)
+        self.layout.add_widget(self.due_date_input)
+
+        self.message_label = Label(text="")
+        self.layout.add_widget(self.message_label)
+
+        save_btn = Button(text="Save Fee Record")
+        save_btn.bind(on_press=self.save_fee)
+        self.layout.add_widget(save_btn)
+
+        back_btn = Button(text="Back to Home")
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        students = get_all_students()
+        self.student_name_to_id = {student[1]: student[0] for student in students}
+        self.student_spinner.values = list(self.student_name_to_id.keys())
+        self.message_label.text = ""
+
+    def save_fee(self, instance):
+        selected_student_name = self.student_spinner.text
+        description = self.description_input.text.strip()
+        amount_text = self.amount_input.text.strip()
+        due_date = self.due_date_input.text.strip()
+
+        if selected_student_name not in self.student_name_to_id:
+            self.message_label.text = "Please select a valid student!"
+            return
+
+        if not description or not amount_text or not due_date:
+            self.message_label.text = "All fields are required!"
+            return
+
+        student_id = self.student_name_to_id[selected_student_name]
+        amount_due = float(amount_text)
+
+        add_fee_record(student_id, description, amount_due, due_date)
+        self.message_label.text = f"Fee record saved for {selected_student_name}"
+
+        self.description_input.text = ""
+        self.amount_input.text = ""
+        self.due_date_input.text = ""
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
+class ViewFeesScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.student_name_to_id = {}
+        self.selected_student_id = None
+        self.fee_id_for_payment = None
+
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.student_spinner = Spinner(text="Select a Student", values=[])
+        self.layout.add_widget(self.student_spinner)
+
+        load_btn = Button(text="Load Fees", size_hint_y=None, height=50)
+        load_btn.bind(on_press=self.load_fees)
+        self.layout.add_widget(load_btn)
+
+        self.pending_label = Label(text="", size_hint_y=None, height=40, bold=True)
+        self.layout.add_widget(self.pending_label)
+
+        self.fees_grid = GridLayout(cols=5, size_hint_y=None, spacing=5, padding=5)
+        self.fees_grid.bind(minimum_height=self.fees_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.fees_grid)
+        self.layout.add_widget(scroll)
+
+        payment_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
+        self.payment_amount_input = TextInput(hint_text="Payment Amount", multiline=False, input_filter="float")
+        payment_row.add_widget(self.payment_amount_input)
+        record_payment_btn = Button(text="Record Payment")
+        record_payment_btn.bind(on_press=self.record_payment_action)
+        payment_row.add_widget(record_payment_btn)
+        self.layout.add_widget(payment_row)
+
+        self.message_label = Label(text="", size_hint_y=None, height=30)
+        self.layout.add_widget(self.message_label)
+
+        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        students = get_all_students()
+        self.student_name_to_id = {student[1]: student[0] for student in students}
+        self.student_spinner.values = list(self.student_name_to_id.keys())
+
+    def load_fees(self, instance):
+        selected_student_name = self.student_spinner.text
+        if selected_student_name not in self.student_name_to_id:
+            self.message_label.text = "Please select a valid student first!"
+            return
+
+        self.selected_student_id = self.student_name_to_id[selected_student_name]
+        fees = get_fees_for_student(self.selected_student_id)
+
+        self.fees_grid.clear_widgets()
+        for header in ["Description", "Due", "Paid", "Pending", "Due Date"]:
+            self.fees_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+
+        for fee_id, description, amount_due, amount_paid, due_date in fees:
+            pending = amount_due - amount_paid
+            self.fees_grid.add_widget(Label(text=description, size_hint_y=None, height=40))
+            self.fees_grid.add_widget(Label(text=str(amount_due), size_hint_y=None, height=40))
+            self.fees_grid.add_widget(Label(text=str(amount_paid), size_hint_y=None, height=40))
+            self.fees_grid.add_widget(Label(text=str(pending), size_hint_y=None, height=40))
+            self.fees_grid.add_widget(Label(text=due_date, size_hint_y=None, height=40))
+
+            if pending > 0:
+                self.fee_id_for_payment = fee_id
+
+        total_pending = get_total_pending_dues(self.selected_student_id)
+        self.pending_label.text = f"Total Pending Dues: {total_pending}"
+        self.message_label.text = "Payments will apply to the oldest unpaid fee record."
+
+    def record_payment_action(self, instance):
+        if not self.selected_student_id:
+            self.message_label.text = "Load a student's fees first!"
+            return
+
+        payment_text = self.payment_amount_input.text.strip()
+        if not payment_text:
+            self.message_label.text = "Enter a payment amount!"
+            return
+
+        if not self.fee_id_for_payment:
+            self.message_label.text = "No pending fee record to apply payment to!"
+            return
+
+        payment_amount = float(payment_text)
+        record_payment(self.fee_id_for_payment, payment_amount)
+        self.payment_amount_input.text = ""
+        self.message_label.text = "Payment recorded!"
+        self.load_fees(None)
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
 
 class ViewBatchesScreen(Screen):
     def __init__(self, **kwargs):
@@ -603,6 +782,7 @@ class ZeroToInfinityApp(App):
         init_batches_table()
         add_batch_id_column()
         init_attendance_table()
+        init_fees_table()
         sm = ScreenManager()
         sm.add_widget(HomeScreen(name="home"))
         sm.add_widget(AddStudentScreen(name="add_student"))
@@ -613,6 +793,8 @@ class ZeroToInfinityApp(App):
         sm.add_widget(AssignBatchScreen(name="assign_batch"))
         sm.add_widget(TakeAttendanceScreen(name="take_attendance"))
         sm.add_widget(AttendanceHistoryScreen(name="attendance_history"))
+        sm.add_widget(AddFeeScreen(name="add_fee"))
+        sm.add_widget(ViewFeesScreen(name="view_fees"))
 
         return sm
 
