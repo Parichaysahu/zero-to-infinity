@@ -142,6 +142,7 @@ def get_batch_name(batch_id):
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else "Not Assigned"
+
 def init_attendance_table():
     """Creates the attendance table if it doesn't already exist."""
     conn = sqlite3.connect(DB_NAME)
@@ -266,3 +267,104 @@ def get_total_pending_dues(student_id):
     fees = get_fees_for_student(student_id)
     total_pending = sum(amount_due - amount_paid for _, _, amount_due, amount_paid, _ in fees)
     return round(total_pending, 2)
+
+def init_exams_table():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS exams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_name TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            batch_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            max_marks REAL NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def add_exam(exam_name, subject, batch_id, date, max_marks):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO exams (exam_name, subject, batch_id, date, max_marks)
+        VALUES (?, ?, ?, ?, ?)
+    """, (exam_name, subject, batch_id, date, max_marks))
+    conn.commit()
+    conn.close()
+
+def get_all_exams():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM exams ORDER BY date DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_exam_by_id(exam_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM exams WHERE id = ?", (exam_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+
+def init_marks_table():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS marks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            marks_obtained REAL NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def record_marks(exam_id, student_id, marks_obtained):
+    """Saves or updates a student's marks for a specific exam."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id FROM marks WHERE exam_id = ? AND student_id = ?
+    """, (exam_id, student_id))
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute("UPDATE marks SET marks_obtained = ? WHERE id = ?", (marks_obtained, existing[0]))
+    else:
+        cursor.execute("""
+            INSERT INTO marks (exam_id, student_id, marks_obtained)
+            VALUES (?, ?, ?)
+        """, (exam_id, student_id, marks_obtained))
+
+    conn.commit()
+    conn.close()
+
+def get_marks_for_exam(exam_id):
+    """Returns a dict of {student_id: marks_obtained} for a given exam."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT student_id, marks_obtained FROM marks WHERE exam_id = ?", (exam_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return {row[0]: row[1] for row in rows}
+
+def get_progress_for_student(student_id):
+    """Returns a list of (exam_name, subject, date, marks_obtained, max_marks) for a student."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT exams.exam_name, exams.subject, exams.date, marks.marks_obtained, exams.max_marks
+        FROM marks
+        JOIN exams ON marks.exam_id = exams.id
+        WHERE marks.student_id = ?
+        ORDER BY exams.date DESC
+    """, (student_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

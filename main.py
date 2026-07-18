@@ -15,7 +15,10 @@ from database import (
     add_batch_id_column, assign_student_to_batch, get_students_by_batch, get_batch_name,
     init_attendance_table, mark_attendance, get_attendance_for_batch_on_date,
     get_attendance_history, get_attendance_percentage,
-    init_fees_table, add_fee_record, get_fees_for_student, record_payment, get_total_pending_dues
+    init_fees_table, add_fee_record, get_fees_for_student, record_payment, get_total_pending_dues,
+    init_exams_table, add_exam, get_all_exams, get_exam_by_id,
+    init_marks_table, record_marks, get_marks_for_exam, get_progress_for_student
+
 )
 
 class HomeScreen(Screen):
@@ -54,6 +57,14 @@ class HomeScreen(Screen):
         view_fees_btn.bind(on_press=self.go_to_view_fees)
         layout.add_widget(view_fees_btn)
 
+        add_exam_btn = Button(text="Add Exam")
+        add_exam_btn.bind(on_press=self.go_to_add_exam)
+        layout.add_widget(add_exam_btn)
+
+        record_marks_btn = Button(text="Record Marks")
+        record_marks_btn.bind(on_press=self.go_to_record_marks)
+        layout.add_widget(record_marks_btn)
+
         self.add_widget(layout)
 
     def go_to_add_student(self, instance):
@@ -76,6 +87,12 @@ class HomeScreen(Screen):
 
     def go_to_view_fees(self, instance):
         self.manager.current = "view_fees"
+
+    def go_to_add_exam(self, instance):
+        self.manager.current = "add_exam"
+
+    def go_to_record_marks(self, instance):
+        self.manager.current = "record_marks"
 
 
 class AddStudentScreen(Screen):
@@ -748,6 +765,10 @@ class ViewStudentsScreen(Screen):
             history_btn.bind(on_press=lambda instance, sid=student_id: self.view_history(sid))
             self.students_grid.add_widget(history_btn)
 
+            progress_btn = Button(text="Progress", size_hint_y=None, height=40)
+            progress_btn.bind(on_press=lambda instance, sid=student_id: self.view_progress(sid))
+            self.students_grid.add_widget(progress_btn)
+
             delete_btn = Button(text="Delete", size_hint_y=None, height=40)
             delete_btn.bind(on_press=lambda instance, sid=student_id: self.confirm_delete(sid))
             self.students_grid.add_widget(delete_btn)
@@ -774,6 +795,228 @@ class ViewStudentsScreen(Screen):
         history_screen.load_history(student_id)
         self.manager.current = "attendance_history"
 
+    def view_progress(self, student_id):
+        progress_screen = self.manager.get_screen("student_progress")
+        progress_screen.load_progress(student_id)
+        self.manager.current = "student_progress"
+
+class AddExamScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.batch_name_to_id = {}
+
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.exam_name_input = TextInput(hint_text="Exam Name (e.g. Unit Test 1)", multiline=False)
+        self.layout.add_widget(self.exam_name_input)
+
+        self.subject_input = TextInput(hint_text="Subject", multiline=False)
+        self.layout.add_widget(self.subject_input)
+
+        self.batch_spinner = Spinner(text="Select a Batch", values=[])
+        self.layout.add_widget(self.batch_spinner)
+
+        self.date_input = TextInput(text=str(date.today()), hint_text="Date (YYYY-MM-DD)", multiline=False)
+        self.layout.add_widget(self.date_input)
+
+        self.max_marks_input = TextInput(hint_text="Max Marks (e.g. 100)", multiline=False, input_filter="float")
+        self.layout.add_widget(self.max_marks_input)
+
+        self.message_label = Label(text="")
+        self.layout.add_widget(self.message_label)
+
+        save_btn = Button(text="Save Exam")
+        save_btn.bind(on_press=self.save_exam)
+        self.layout.add_widget(save_btn)
+
+        back_btn = Button(text="Back to Home")
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        batches = get_all_batches()
+        self.batch_name_to_id = {batch[1]: batch[0] for batch in batches}
+        self.batch_spinner.values = list(self.batch_name_to_id.keys())
+        self.message_label.text = ""
+
+    def save_exam(self, instance):
+        exam_name = self.exam_name_input.text.strip()
+        subject = self.subject_input.text.strip()
+        selected_batch_name = self.batch_spinner.text
+        exam_date = self.date_input.text.strip()
+        max_marks_text = self.max_marks_input.text.strip()
+
+        if selected_batch_name not in self.batch_name_to_id:
+            self.message_label.text = "Please select a valid batch!"
+            return
+
+        if not exam_name or not subject or not max_marks_text:
+            self.message_label.text = "All fields are required!"
+            return
+
+        batch_id = self.batch_name_to_id[selected_batch_name]
+        max_marks = float(max_marks_text)
+
+        add_exam(exam_name, subject, batch_id, exam_date, max_marks)
+        self.message_label.text = f"Exam saved: {exam_name}"
+
+        self.exam_name_input.text = ""
+        self.subject_input.text = ""
+        self.max_marks_input.text = ""
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
+class RecordMarksScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.exam_display_to_id = {}
+        self.selected_exam_id = None
+        self.marks_inputs = {}  # {student_id: TextInput}
+
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.exam_spinner = Spinner(text="Select an Exam", values=[])
+        self.layout.add_widget(self.exam_spinner)
+
+        load_btn = Button(text="Load Students", size_hint_y=None, height=50)
+        load_btn.bind(on_press=self.load_students_for_exam)
+        self.layout.add_widget(load_btn)
+
+        self.marks_grid = GridLayout(cols=2, size_hint_y=None, spacing=5, padding=5)
+        self.marks_grid.bind(minimum_height=self.marks_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.marks_grid)
+        self.layout.add_widget(scroll)
+
+        self.message_label = Label(text="", size_hint_y=None, height=30)
+        self.layout.add_widget(self.message_label)
+
+        save_btn = Button(text="Save All Marks", size_hint_y=None, height=50)
+        save_btn.bind(on_press=self.save_all_marks)
+        self.layout.add_widget(save_btn)
+
+        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def on_pre_enter(self):
+        exams = get_all_exams()
+        self.exam_display_to_id = {}
+        for exam in exams:
+            exam_id, exam_name, subject, batch_id, exam_date, max_marks = exam
+            display = f"{exam_name} - {subject} ({exam_date})"
+            self.exam_display_to_id[display] = (exam_id, batch_id)
+        self.exam_spinner.values = list(self.exam_display_to_id.keys())
+        self.message_label.text = ""
+
+    def load_students_for_exam(self, instance):
+        selected_display = self.exam_spinner.text
+        if selected_display not in self.exam_display_to_id:
+            self.message_label.text = "Please select a valid exam first!"
+            return
+
+        exam_id, batch_id = self.exam_display_to_id[selected_display]
+        self.selected_exam_id = exam_id
+
+        students = get_students_by_batch(batch_id)
+        existing_marks = get_marks_for_exam(exam_id)
+
+        self.marks_grid.clear_widgets()
+        self.marks_inputs = {}
+
+        if not students:
+            self.marks_grid.add_widget(Label(text="No students in this batch.", size_hint_y=None, height=40))
+            self.marks_grid.add_widget(Label(text="", size_hint_y=None, height=40))
+            return
+
+        for student in students:
+            student_id = student[0]
+            student_name = student[1]
+
+            self.marks_grid.add_widget(Label(text=student_name, size_hint_y=None, height=40))
+
+            marks_input = TextInput(
+                text=str(existing_marks.get(student_id, "")),
+                multiline=False,
+                input_filter="float",
+                size_hint_y=None,
+                height=40
+            )
+            self.marks_inputs[student_id] = marks_input
+            self.marks_grid.add_widget(marks_input)
+
+        self.message_label.text = f"Loaded {len(students)} student(s). Enter marks and save."
+
+    def save_all_marks(self, instance):
+        if not self.selected_exam_id or not self.marks_inputs:
+            self.message_label.text = "Load an exam's students first!"
+            return
+
+        saved_count = 0
+        for student_id, marks_input in self.marks_inputs.items():
+            marks_text = marks_input.text.strip()
+            if marks_text:
+                record_marks(self.selected_exam_id, student_id, float(marks_text))
+                saved_count += 1
+
+        self.message_label.text = f"Saved marks for {saved_count} student(s)!"
+
+    def go_back(self, instance):
+        self.manager.current = "home"
+
+class StudentProgressScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+
+        self.student_label = Label(text="Progress for: ", size_hint_y=None, height=40)
+        self.layout.add_widget(self.student_label)
+
+        self.progress_grid = GridLayout(cols=4, size_hint_y=None, spacing=5, padding=5)
+        self.progress_grid.bind(minimum_height=self.progress_grid.setter("height"))
+
+        scroll = ScrollView()
+        scroll.add_widget(self.progress_grid)
+        self.layout.add_widget(scroll)
+
+        back_btn = Button(text="Back to View Students", size_hint_y=None, height=50)
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+
+        self.add_widget(self.layout)
+
+    def load_progress(self, student_id):
+        student = get_student_by_id(student_id)
+        _, name, student_class, joining_date, contact, status, batch_id = student
+        self.student_label.text = f"Progress for: {name} ({student_class})"
+
+        self.progress_grid.clear_widgets()
+        for header in ["Exam", "Subject", "Date", "Marks"]:
+            self.progress_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+
+        progress = get_progress_for_student(student_id)
+        if not progress:
+            self.progress_grid.add_widget(Label(text="No exam records yet.", size_hint_y=None, height=40))
+            self.progress_grid.add_widget(Label(text="", size_hint_y=None, height=40))
+            self.progress_grid.add_widget(Label(text="", size_hint_y=None, height=40))
+            self.progress_grid.add_widget(Label(text="", size_hint_y=None, height=40))
+            return
+
+        for exam_name, subject, exam_date, marks_obtained, max_marks in progress:
+            self.progress_grid.add_widget(Label(text=exam_name, size_hint_y=None, height=40))
+            self.progress_grid.add_widget(Label(text=subject, size_hint_y=None, height=40))
+            self.progress_grid.add_widget(Label(text=exam_date, size_hint_y=None, height=40))
+            self.progress_grid.add_widget(Label(text=f"{marks_obtained}/{max_marks}", size_hint_y=None, height=40))
+
+    def go_back(self, instance):
+        self.manager.current = "view_students"
+
 
 class ZeroToInfinityApp(App):
     def build(self):
@@ -783,6 +1026,8 @@ class ZeroToInfinityApp(App):
         add_batch_id_column()
         init_attendance_table()
         init_fees_table()
+        init_exams_table()
+        init_marks_table()
         sm = ScreenManager()
         sm.add_widget(HomeScreen(name="home"))
         sm.add_widget(AddStudentScreen(name="add_student"))
@@ -795,6 +1040,9 @@ class ZeroToInfinityApp(App):
         sm.add_widget(AttendanceHistoryScreen(name="attendance_history"))
         sm.add_widget(AddFeeScreen(name="add_fee"))
         sm.add_widget(ViewFeesScreen(name="view_fees"))
+        sm.add_widget(AddExamScreen(name="add_exam"))
+        sm.add_widget(RecordMarksScreen(name="record_marks"))
+        sm.add_widget(StudentProgressScreen(name="student_progress"))
 
         return sm
 
