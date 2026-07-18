@@ -7,7 +7,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
-Window.size = (1500, 800)
+Window.size = (1700, 800)
 from kivy.uix.gridlayout import GridLayout
 from database import (
     init_db, add_student, get_all_students, get_student_by_id, update_student, delete_student,
@@ -17,83 +17,74 @@ from database import (
     get_attendance_history, get_attendance_percentage,
     init_fees_table, add_fee_record, get_fees_for_student, record_payment, get_total_pending_dues,
     init_exams_table, add_exam, get_all_exams, get_exam_by_id,
-    init_marks_table, record_marks, get_marks_for_exam, get_progress_for_student
-
+    init_marks_table, record_marks, get_marks_for_exam, get_progress_for_student,
+    get_total_students_count, get_total_batches_count, get_total_fees_collected, get_total_pending_dues_all, get_today_attendance_summary
 )
 
 class HomeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation="vertical")
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
 
-        title = Label(text="Zero To Infinity", font_size=28)
-        layout.add_widget(title)
+        title = Label(text="Zero To Infinity", font_size=28, size_hint_y=None, height=50)
+        self.layout.add_widget(title)
 
-        add_student_btn = Button(text="Add Student")
-        add_student_btn.bind(on_press=self.go_to_add_student)
-        layout.add_widget(add_student_btn)
+        self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=10, padding=10)
+        self.stats_grid.bind(minimum_height=self.stats_grid.setter("height"))
+        self.layout.add_widget(self.stats_grid)
 
-        view_students_btn = Button(text="View Students")
-        view_students_btn.bind(on_press=self.go_to_view_students)
-        layout.add_widget(view_students_btn)
+        button_scroll_layout = GridLayout(cols=3, size_hint_y=None, spacing=8, padding=8)
+        button_scroll_layout.bind(minimum_height=button_scroll_layout.setter("height"))
 
-        add_batch_btn = Button(text="Add Batch")
-        add_batch_btn.bind(on_press=self.go_to_add_batch)
-        layout.add_widget(add_batch_btn)
+        nav_buttons = [
+            ("Add Student", "add_student"),
+            ("View Students", "view_students"),
+            ("Add Batch", "add_batch"),
+            ("View Batches", "view_batches"),
+            ("Take Attendance", "take_attendance"),
+            ("Add Fee Record", "add_fee"),
+            ("View Fees", "view_fees"),
+            ("Add Exam", "add_exam"),
+            ("Record Marks", "record_marks"),
+        ]
 
-        view_batches_btn = Button(text="View Batches")
-        view_batches_btn.bind(on_press=self.go_to_view_batches)
-        layout.add_widget(view_batches_btn)
+        for label_text, screen_name in nav_buttons:
+            btn = Button(text=label_text, size_hint_y=None, height=50)
+            btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
+            button_scroll_layout.add_widget(btn)
 
-        take_attendance_btn = Button(text="Take Attendance")
-        take_attendance_btn.bind(on_press=self.go_to_take_attendance)
-        layout.add_widget(take_attendance_btn)
+        scroll = ScrollView()
+        scroll.add_widget(button_scroll_layout)
+        self.layout.add_widget(scroll)
 
-        add_fee_btn = Button(text="Add Fee Record")
-        add_fee_btn.bind(on_press=self.go_to_add_fee)
-        layout.add_widget(add_fee_btn)
+        self.add_widget(self.layout)
 
-        view_fees_btn = Button(text="View Fees")
-        view_fees_btn.bind(on_press=self.go_to_view_fees)
-        layout.add_widget(view_fees_btn)
+    def on_pre_enter(self):
+        self.load_dashboard_stats()
 
-        add_exam_btn = Button(text="Add Exam")
-        add_exam_btn.bind(on_press=self.go_to_add_exam)
-        layout.add_widget(add_exam_btn)
+    def load_dashboard_stats(self):
+        self.stats_grid.clear_widgets()
 
-        record_marks_btn = Button(text="Record Marks")
-        record_marks_btn.bind(on_press=self.go_to_record_marks)
-        layout.add_widget(record_marks_btn)
+        total_students = get_total_students_count()
+        total_batches = get_total_batches_count()
+        total_collected = get_total_fees_collected()
+        total_pending = get_total_pending_dues_all()
+        present, absent = get_today_attendance_summary()
 
-        self.add_widget(layout)
+        stats = [
+            ("Total Students", str(total_students)),
+            ("Total Batches", str(total_batches)),
+            ("Fees Collected", f"₹{total_collected}"),
+            ("Pending Dues", f"₹{total_pending}"),
+            ("Today's Attendance", f"{present} Present / {absent} Absent"),
+        ]
 
-    def go_to_add_student(self, instance):
-        self.manager.current = "add_student"
+        for label_text, value_text in stats:
+            self.stats_grid.add_widget(Label(text=label_text, bold=True, size_hint_y=None, height=30))
+            self.stats_grid.add_widget(Label(text=value_text, size_hint_y=None, height=30))
 
-    def go_to_view_students(self, instance):
-        self.manager.current = "view_students"
-
-    def go_to_add_batch(self, instance):
-        self.manager.current = "add_batch"
-
-    def go_to_view_batches(self, instance):
-        self.manager.current = "view_batches"
-
-    def go_to_take_attendance(self, instance):
-        self.manager.current = "take_attendance"
-
-    def go_to_add_fee(self, instance):
-        self.manager.current = "add_fee"
-
-    def go_to_view_fees(self, instance):
-        self.manager.current = "view_fees"
-
-    def go_to_add_exam(self, instance):
-        self.manager.current = "add_exam"
-
-    def go_to_record_marks(self, instance):
-        self.manager.current = "record_marks"
-
+    def go_to_screen(self, screen_name):
+        self.manager.current = screen_name
 
 class AddStudentScreen(Screen):
     def __init__(self, **kwargs):
@@ -699,7 +690,7 @@ class ViewStudentsScreen(Screen):
         self.layout = BoxLayout(orientation="vertical")
 
         self.students_grid = GridLayout(
-            cols=10,
+            cols=11,
             size_hint_y=None,
             spacing=5,
             padding=5,
@@ -713,7 +704,8 @@ class ViewStudentsScreen(Screen):
                 6: 70,   # Edit
                 7: 130,  # Assign Batch
                 8: 90,   # History
-                9: 80,   # Delete
+                9: 90,   # Progress
+                10: 80,   # Delete
             }
         )
         self.students_grid.bind(minimum_height=self.students_grid.setter("height"))
@@ -738,7 +730,7 @@ class ViewStudentsScreen(Screen):
     def load_students(self, instance=None):
         self.students_grid.clear_widgets()
 
-        for header in ["Name", "Class", "Joining Date", "Contact", "Status", "Batch", "", "", "", ""]:
+        for header in ["Name", "Class", "Joining Date", "Contact", "Status", "Batch", "", "", "", "", ""]:
             self.students_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
 
         students = get_all_students()

@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date
 
 DB_NAME = "zero_to_infinity.db"
 
@@ -368,3 +369,47 @@ def get_progress_for_student(student_id):
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def get_total_students_count():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM students")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_total_batches_count():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM batches")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_total_fees_collected():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT SUM(amount_paid) FROM fees")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return round(total, 2) if total else 0
+
+def get_total_pending_dues_all():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT SUM(amount_due - amount_paid) FROM fees")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return round(total, 2) if total else 0
+
+def get_today_attendance_summary():
+    """Returns (present_count, absent_count) for today's date."""
+    today_str = str(date.today())
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM attendance WHERE date = ? AND status = 'Present'", (today_str,))
+    present = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM attendance WHERE date = ? AND status = 'Absent'", (today_str,))
+    absent = cursor.fetchone()[0]
+    conn.close()
+    return present, absent
