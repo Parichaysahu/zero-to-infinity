@@ -7,7 +7,10 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
-Window.size = (1700, 800)
+from kivy.utils import platform
+
+if platform not in ('android', 'ios'):
+    Window.size = (1500, 800)
 from kivy.uix.gridlayout import GridLayout
 from database import (
     init_db, add_student, get_all_students, get_student_by_id, update_student, delete_student,
