@@ -52,7 +52,7 @@ requirements = python3,kivy,sqlite3
 #presplash.filename = %(source.dir)s/data/presplash.png
 
 # (str) Icon of the application
-#icon.filename = %(source.dir)s/data/icon.png
+icon.filename = %(source.dir)s/data/icon.png
 
 # (list) Supported orientations
 # Valid options are: landscape, portrait, portrait-reverse, landscape-reverse, or all
@@ -141,7 +141,7 @@ android.minapi = 24
 # agreements. This is intended for automation only. If set to False,
 # the default, you will be shown the license when first running
 # buildozer.
-# android.accept_sdk_license = False
+  android.accept_sdk_license = True
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.kivy.android.PythonActivity

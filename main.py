@@ -544,7 +544,7 @@ class ViewFeesScreen(Screen):
 
         self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
 
-        self.student_spinner = Spinner(text="Select a Student", values=[])
+        self.student_spinner = Spinner(text="Select a Student", values=[], size_hint_y=None, height=50)
         self.layout.add_widget(self.student_spinner)
 
         load_btn = Button(text="Load Fees", size_hint_y=None, height=50)
@@ -554,11 +554,11 @@ class ViewFeesScreen(Screen):
         self.pending_label = Label(text="", size_hint_y=None, height=40, bold=True)
         self.layout.add_widget(self.pending_label)
 
-        self.fees_grid = GridLayout(cols=5, size_hint_y=None, spacing=5, padding=5)
-        self.fees_grid.bind(minimum_height=self.fees_grid.setter("height"))
+        self.fees_list = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10, padding=10)
+        self.fees_list.bind(minimum_height=self.fees_list.setter("height"))
 
         scroll = ScrollView()
-        scroll.add_widget(self.fees_grid)
+        scroll.add_widget(self.fees_list)
         self.layout.add_widget(scroll)
 
         payment_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
@@ -592,24 +592,31 @@ class ViewFeesScreen(Screen):
         self.selected_student_id = self.student_name_to_id[selected_student_name]
         fees = get_fees_for_student(self.selected_student_id)
 
-        self.fees_grid.clear_widgets()
-        for header in ["Description", "Due", "Paid", "Pending", "Due Date"]:
-            self.fees_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+        self.fees_list.clear_widgets()
 
         for fee_id, description, amount_due, amount_paid, due_date in fees:
             pending = amount_due - amount_paid
-            self.fees_grid.add_widget(Label(text=description, size_hint_y=None, height=40))
-            self.fees_grid.add_widget(Label(text=str(amount_due), size_hint_y=None, height=40))
-            self.fees_grid.add_widget(Label(text=str(amount_paid), size_hint_y=None, height=40))
-            self.fees_grid.add_widget(Label(text=str(pending), size_hint_y=None, height=40))
-            self.fees_grid.add_widget(Label(text=due_date, size_hint_y=None, height=40))
+
+            card = BoxLayout(orientation="vertical", size_hint_y=None, height=140, padding=10, spacing=4)
+            with card.canvas.before:
+                from kivy.graphics import Color, RoundedRectangle
+                Color(0.15, 0.15, 0.2, 1)
+                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
+            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
+            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
+
+            card.add_widget(Label(text=f"[b]{description}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
+            card.add_widget(Label(text=f"Due: ₹{amount_due}  |  Paid: ₹{amount_paid}", size_hint_y=None, height=25))
+            card.add_widget(Label(text=f"Pending: ₹{pending}  |  Due Date: {due_date}", size_hint_y=None, height=25))
+
+            self.fees_list.add_widget(card)
 
             if pending > 0:
                 self.fee_id_for_payment = fee_id
 
         total_pending = get_total_pending_dues(self.selected_student_id)
         self.pending_label.text = f"Total Pending Dues: {total_pending}"
-        self.message_label.text = "Payments will apply to the oldest unpaid fee record."
+        self.message_label.text = "Payments apply to the oldest unpaid fee record."
 
     def record_payment_action(self, instance):
         if not self.selected_student_id:
@@ -640,22 +647,11 @@ class ViewBatchesScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation="vertical")
 
-        self.batches_grid = GridLayout(
-            cols=4,
-            size_hint_y=None,
-            spacing=5,
-            padding=5,
-            cols_minimum={
-                0: 200,  # Batch Name
-                1: 130,  # Subject
-                2: 200,  # Schedule
-                3: 80,   # Delete
-            }
-        )
-        self.batches_grid.bind(minimum_height=self.batches_grid.setter("height"))
+        self.batches_list = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10, padding=10)
+        self.batches_list.bind(minimum_height=self.batches_list.setter("height"))
 
         scroll = ScrollView()
-        scroll.add_widget(self.batches_grid)
+        scroll.add_widget(self.batches_list)
         self.layout.add_widget(scroll)
 
         back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
@@ -668,22 +664,27 @@ class ViewBatchesScreen(Screen):
         self.load_batches()
 
     def load_batches(self):
-        self.batches_grid.clear_widgets()
-
-        for header in ["Batch Name", "Subject", "Schedule", ""]:
-            self.batches_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+        self.batches_list.clear_widgets()
 
         batches = get_all_batches()
-        for batch in batches:
-            batch_id, batch_name, subject, schedule = batch
+        for batch_id, batch_name, subject, schedule in batches:
+            card = BoxLayout(orientation="vertical", size_hint_y=None, height=140, padding=10, spacing=4)
+            with card.canvas.before:
+                from kivy.graphics import Color, RoundedRectangle
+                Color(0.15, 0.15, 0.2, 1)
+                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
+            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
+            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
 
-            self.batches_grid.add_widget(Label(text=batch_name, size_hint_y=None, height=40))
-            self.batches_grid.add_widget(Label(text=subject, size_hint_y=None, height=40))
-            self.batches_grid.add_widget(Label(text=schedule, size_hint_y=None, height=40))
+            card.add_widget(Label(text=f"[b]{batch_name}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
+            card.add_widget(Label(text=f"Subject: {subject}", size_hint_y=None, height=25))
+            card.add_widget(Label(text=f"Schedule: {schedule}", size_hint_y=None, height=25))
 
-            delete_btn = Button(text="Delete", size_hint_y=None, height=40)
+            delete_btn = Button(text="Delete", size_hint_y=None, height=45)
             delete_btn.bind(on_press=lambda instance, bid=batch_id: self.delete_batch_action(bid))
-            self.batches_grid.add_widget(delete_btn)
+            card.add_widget(delete_btn)
+
+            self.batches_list.add_widget(card)
 
     def delete_batch_action(self, batch_id):
         delete_batch(batch_id)
@@ -750,17 +751,11 @@ class ViewExpensesScreen(Screen):
         self.summary_label = Label(text="", size_hint_y=None, height=40, bold=True)
         self.layout.add_widget(self.summary_label)
 
-        self.expenses_grid = GridLayout(
-            cols=5,
-            size_hint_y=None,
-            spacing=5,
-            padding=5,
-            cols_minimum={0: 200, 1: 100, 2: 110, 3: 130, 4: 80}
-        )
-        self.expenses_grid.bind(minimum_height=self.expenses_grid.setter("height"))
+        self.expenses_list = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10, padding=10)
+        self.expenses_list.bind(minimum_height=self.expenses_list.setter("height"))
 
         scroll = ScrollView()
-        scroll.add_widget(self.expenses_grid)
+        scroll.add_widget(self.expenses_list)
         self.layout.add_widget(scroll)
 
         back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
@@ -773,26 +768,32 @@ class ViewExpensesScreen(Screen):
         self.load_expenses()
 
     def load_expenses(self):
-        self.expenses_grid.clear_widgets()
-
-        for header in ["Description", "Amount", "Date", "Category", ""]:
-            self.expenses_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+        self.expenses_list.clear_widgets()
 
         expenses = get_all_expenses()
         for expense_id, description, amount, expense_date, category in expenses:
-            self.expenses_grid.add_widget(Label(text=description, size_hint_y=None, height=40))
-            self.expenses_grid.add_widget(Label(text=str(amount), size_hint_y=None, height=40))
-            self.expenses_grid.add_widget(Label(text=expense_date, size_hint_y=None, height=40))
-            self.expenses_grid.add_widget(Label(text=category, size_hint_y=None, height=40))
+            card = BoxLayout(orientation="vertical", size_hint_y=None, height=160, padding=10, spacing=4)
+            with card.canvas.before:
+                from kivy.graphics import Color, RoundedRectangle
+                Color(0.15, 0.15, 0.2, 1)
+                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
+            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
+            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
 
-            delete_btn = Button(text="Delete", size_hint_y=None, height=40)
+            card.add_widget(Label(text=f"[b]{description}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
+            card.add_widget(Label(text=f"Amount: ₹{amount}  |  Category: {category}", size_hint_y=None, height=25))
+            card.add_widget(Label(text=f"Date: {expense_date}", size_hint_y=None, height=25))
+
+            delete_btn = Button(text="Delete", size_hint_y=None, height=45)
             delete_btn.bind(on_press=lambda instance, eid=expense_id: self.delete_expense_action(eid))
-            self.expenses_grid.add_widget(delete_btn)
+            card.add_widget(delete_btn)
+
+            self.expenses_list.add_widget(card)
 
         total_expenses = get_total_expenses()
         total_fees = get_total_fees_collected()
         profit = round(total_fees - total_expenses, 2)
-        self.summary_label.text = f"Fees Collected: ₹{total_fees}  |  Expenses: ₹{total_expenses}  |  Profit: ₹{profit}"
+        self.summary_label.text = f"Fees: ₹{total_fees}  |  Expenses: ₹{total_expenses}  |  Profit: ₹{profit}"
 
     def delete_expense_action(self, expense_id):
         delete_expense(expense_id)
@@ -806,29 +807,11 @@ class ViewStudentsScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation="vertical")
 
-        self.students_grid = GridLayout(
-            cols=11,
-            size_hint_y=None,
-            spacing=5,
-            padding=5,
-            cols_minimum={
-                0: 150,  # Name
-                1: 80,   # Class
-                2: 110,  # Joining Date
-                3: 130,  # Contact
-                4: 90,   # Status
-                5: 100,  # Batch
-                6: 70,   # Edit
-                7: 130,  # Assign Batch
-                8: 90,   # History
-                9: 90,   # Progress
-                10: 80,   # Delete
-            }
-        )
-        self.students_grid.bind(minimum_height=self.students_grid.setter("height"))
+        self.students_list = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10, padding=10)
+        self.students_list.bind(minimum_height=self.students_list.setter("height"))
 
         scroll = ScrollView()
-        scroll.add_widget(self.students_grid)
+        scroll.add_widget(self.students_list)
         self.layout.add_widget(scroll)
 
         refresh_btn = Button(text="Refresh List", size_hint_y=None, height=50)
@@ -845,42 +828,50 @@ class ViewStudentsScreen(Screen):
         self.load_students()
 
     def load_students(self, instance=None):
-        self.students_grid.clear_widgets()
-
-        for header in ["Name", "Class", "Joining Date", "Contact", "Status", "Batch", "", "", "", "", ""]:
-            self.students_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+        self.students_list.clear_widgets()
 
         students = get_all_students()
         for student in students:
             student_id, name, student_class, joining_date, contact, status, batch_id = student
             batch_name = get_batch_name(batch_id)
 
-            self.students_grid.add_widget(Label(text=name, size_hint_y=None, height=40))
-            self.students_grid.add_widget(Label(text=student_class, size_hint_y=None, height=40))
-            self.students_grid.add_widget(Label(text=joining_date, size_hint_y=None, height=40))
-            self.students_grid.add_widget(Label(text=contact, size_hint_y=None, height=40))
-            self.students_grid.add_widget(Label(text=status, size_hint_y=None, height=40))
-            self.students_grid.add_widget(Label(text=batch_name, size_hint_y=None, height=40))
+            card = BoxLayout(orientation="vertical", size_hint_y=None, height=220, padding=10, spacing=4)
+            with card.canvas.before:
+                from kivy.graphics import Color, RoundedRectangle
+                Color(0.15, 0.15, 0.2, 1)
+                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
+            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
+            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
 
-            edit_btn = Button(text="Edit", size_hint_y=None, height=40)
+            card.add_widget(Label(text=f"[b]{name}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
+            card.add_widget(Label(text=f"Class: {student_class}  |  Batch: {batch_name}", size_hint_y=None, height=25))
+            card.add_widget(Label(text=f"Joined: {joining_date}  |  Status: {status}", size_hint_y=None, height=25))
+            card.add_widget(Label(text=f"Contact: {contact}", size_hint_y=None, height=25))
+
+            button_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=45, spacing=5)
+
+            edit_btn = Button(text="Edit")
             edit_btn.bind(on_press=lambda instance, sid=student_id: self.edit_student(sid))
-            self.students_grid.add_widget(edit_btn)
+            button_row.add_widget(edit_btn)
 
-            assign_btn = Button(text="Assign Batch", size_hint_y=None, height=40)
+            assign_btn = Button(text="Batch")
             assign_btn.bind(on_press=lambda instance, sid=student_id: self.assign_batch(sid))
-            self.students_grid.add_widget(assign_btn)
+            button_row.add_widget(assign_btn)
 
-            history_btn = Button(text="History", size_hint_y=None, height=40)
+            history_btn = Button(text="History")
             history_btn.bind(on_press=lambda instance, sid=student_id: self.view_history(sid))
-            self.students_grid.add_widget(history_btn)
+            button_row.add_widget(history_btn)
 
-            progress_btn = Button(text="Progress", size_hint_y=None, height=40)
+            progress_btn = Button(text="Progress")
             progress_btn.bind(on_press=lambda instance, sid=student_id: self.view_progress(sid))
-            self.students_grid.add_widget(progress_btn)
+            button_row.add_widget(progress_btn)
 
-            delete_btn = Button(text="Delete", size_hint_y=None, height=40)
+            delete_btn = Button(text="Delete")
             delete_btn.bind(on_press=lambda instance, sid=student_id: self.confirm_delete(sid))
-            self.students_grid.add_widget(delete_btn)
+            button_row.add_widget(delete_btn)
+
+            card.add_widget(button_row)
+            self.students_list.add_widget(card)
 
     def edit_student(self, student_id):
         edit_screen = self.manager.get_screen("edit_student")
@@ -1048,17 +1039,11 @@ class TimetableScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation="vertical")
 
-        self.timetable_grid = GridLayout(
-            cols=3,
-            size_hint_y=None,
-            spacing=5,
-            padding=5,
-            cols_minimum={0: 250, 1: 150, 2: 250}
-        )
-        self.timetable_grid.bind(minimum_height=self.timetable_grid.setter("height"))
+        self.timetable_list = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10, padding=10)
+        self.timetable_list.bind(minimum_height=self.timetable_list.setter("height"))
 
         scroll = ScrollView()
-        scroll.add_widget(self.timetable_grid)
+        scroll.add_widget(self.timetable_list)
         self.layout.add_widget(scroll)
 
         back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
@@ -1071,16 +1056,23 @@ class TimetableScreen(Screen):
         self.load_timetable()
 
     def load_timetable(self):
-        self.timetable_grid.clear_widgets()
-
-        for header in ["Batch Name", "Subject", "Schedule"]:
-            self.timetable_grid.add_widget(Label(text=header, bold=True, size_hint_y=None, height=40))
+        self.timetable_list.clear_widgets()
 
         batches = get_all_batches()
         for batch_id, batch_name, subject, schedule in batches:
-            self.timetable_grid.add_widget(Label(text=batch_name, size_hint_y=None, height=40))
-            self.timetable_grid.add_widget(Label(text=subject, size_hint_y=None, height=40))
-            self.timetable_grid.add_widget(Label(text=schedule, size_hint_y=None, height=40))
+            card = BoxLayout(orientation="vertical", size_hint_y=None, height=110, padding=10, spacing=4)
+            with card.canvas.before:
+                from kivy.graphics import Color, RoundedRectangle
+                Color(0.15, 0.15, 0.2, 1)
+                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
+            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
+            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
+
+            card.add_widget(Label(text=f"[b]{batch_name}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
+            card.add_widget(Label(text=f"Subject: {subject}", size_hint_y=None, height=25))
+            card.add_widget(Label(text=f"Schedule: {schedule}", size_hint_y=None, height=25))
+
+            self.timetable_list.add_widget(card)
 
     def go_back(self, instance):
         self.manager.current = "home"
