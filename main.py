@@ -7,6 +7,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.utils import platform
 
 if platform not in ('android', 'ios'):
@@ -25,15 +26,49 @@ from database import (
     init_expenses_table, add_expense, get_all_expenses, delete_expense, get_total_expenses
 )
 
+# ---- COLOR THEME ----
+BG_COLOR = (0.07, 0.07, 0.1, 1)        # dark navy background
+PRIMARY_COLOR = (0.95, 0.5, 0.15, 1)   # orange (matches your logo)
+ACCENT_COLOR = (0.2, 0.5, 0.85, 1)     # blue (matches your logo)
+CARD_COLOR = (0.15, 0.15, 0.22, 1)     # lighter navy for card panels
+
+Window.clearcolor = BG_COLOR
+
+
+def styled_button(text, color=None, **kwargs):
+    """Creates a Button with consistent app styling."""
+    btn = Button(
+        text=text,
+        background_normal="",
+        background_color=color if color else PRIMARY_COLOR,
+        color=(1, 1, 1, 1),
+        **kwargs
+    )
+    return btn
+
+
+def title_label(text, **kwargs):
+    """Creates a large, bold title Label."""
+    return Label(text=text, font_size=26, bold=True, color=(1, 1, 1, 1), **kwargs)
+
+def add_card_background(widget, color=CARD_COLOR, radius=12):
+    """Draws a rounded rectangle behind a widget without changing its type."""
+    with widget.canvas.before:
+        Color(*color)
+        widget._bg_rect = RoundedRectangle(pos=widget.pos, size=widget.size, radius=[radius])
+    widget.bind(pos=lambda w, *a: setattr(w._bg_rect, 'pos', w.pos))
+    widget.bind(size=lambda w, *a: setattr(w._bg_rect, 'size', w.size))
+
 class HomeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
 
-        title = Label(text="Zero To Infinity", font_size=28, size_hint_y=None, height=50)
+        title = title_label("Zero To Infinity")
         self.layout.add_widget(title)
 
         self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=10, padding=10)
+        add_card_background(self.stats_grid)
         self.stats_grid.bind(minimum_height=self.stats_grid.setter("height"))
         self.layout.add_widget(self.stats_grid)
 
@@ -57,7 +92,7 @@ class HomeScreen(Screen):
         ]
 
         for label_text, screen_name in nav_buttons:
-            btn = Button(text=label_text, size_hint_y=None, height=50)
+            btn = styled_button(label_text, size_hint_y=None, height=50)
             btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
             button_scroll_layout.add_widget(btn)
 
