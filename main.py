@@ -48,8 +48,35 @@ def styled_button(text, color=None, **kwargs):
 
 
 def title_label(text, **kwargs):
-    """Creates a large, bold title Label."""
-    return Label(text=text, font_size=26, bold=True, color=(1, 1, 1, 1), **kwargs)
+    """Creates a large, bold title Label that doesn't stretch to fill space."""
+    kwargs.setdefault("size_hint_y", None)
+    kwargs.setdefault("height", 40)
+    return Label(text=text, font_size=22, bold=True, color=(1, 1, 1, 1), **kwargs)
+
+def section_label(text):
+    """Small uppercase section header, like 'Overview' or 'Actions'."""
+    return Label(
+        text=text.upper(),
+        font_size=12,
+        color=(0.55, 0.55, 0.6, 1),
+        size_hint_y=None,
+        height=24,
+        halign="left",
+        valign="middle"
+    )
+
+def styled_input(hint_text, **kwargs):
+    """Creates a TextInput with consistent app styling."""
+    return TextInput(
+        hint_text=hint_text,
+        multiline=False,
+        background_color=(0.15, 0.15, 0.22, 1),
+        foreground_color=(1, 1, 1, 1),
+        hint_text_color=(0.6, 0.6, 0.65, 1),
+        cursor_color=(1, 1, 1, 1),
+        padding=[10, 10, 10, 10],
+        **kwargs
+    )
 
 def add_card_background(widget, color=CARD_COLOR, radius=12):
     """Draws a rounded rectangle behind a widget without changing its type."""
@@ -62,44 +89,52 @@ def add_card_background(widget, color=CARD_COLOR, radius=12):
 class HomeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+        self.layout = BoxLayout(orientation="vertical")
 
-        title = title_label("Zero To Infinity")
-        self.layout.add_widget(title)
+        top_bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=56, padding=[16, 0])
+        add_card_background(top_bar, color=(0.09, 0.09, 0.14, 1), radius=0)
+        top_bar.add_widget(title_label("Zero To Infinity", size_hint_y=None, height=56))
+        self.layout.add_widget(top_bar)
 
-        self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=10, padding=10)
-        add_card_background(self.stats_grid)
+        body = BoxLayout(orientation="vertical", size_hint_y=None, spacing=8, padding=16)
+        body.bind(minimum_height=body.setter("height"))
+
+        overview_label = section_label("Overview")
+        overview_label.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
+        body.add_widget(overview_label)
+
+        self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=8, padding=10)
         self.stats_grid.bind(minimum_height=self.stats_grid.setter("height"))
-        self.layout.add_widget(self.stats_grid)
+        add_card_background(self.stats_grid)
+        body.add_widget(self.stats_grid)
 
-        button_scroll_layout = GridLayout(cols=3, size_hint_y=None, spacing=8, padding=8)
-        button_scroll_layout.bind(minimum_height=button_scroll_layout.setter("height"))
+        actions_label = section_label("Actions")
+        actions_label.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
+        body.add_widget(actions_label)
 
         nav_buttons = [
-            ("Add Student", "add_student"),
-            ("View Students", "view_students"),
-            ("Add Batch", "add_batch"),
-            ("View Batches", "view_batches"),
-            ("Take Attendance", "take_attendance"),
-            ("Add Fee Record", "add_fee"),
-            ("View Fees", "view_fees"),
-            ("Add Exam", "add_exam"),
-            ("Record Marks", "record_marks"),
-            ("Monthly Report", "monthly_report"),
-            ("Add Expense", "add_expense"),
-            ("View Expenses", "view_expenses"),
-            ("Timetable", "timetable"),
-        ]
-
+        ("Add Student", "add_student"),
+        ("View Students", "view_students"),
+        ("Add Batch", "add_batch"),
+        ("View Batches", "view_batches"),
+        ("Take Attendance", "take_attendance"),
+        ("Add Fee Record", "add_fee"),
+        ("View Fees", "view_fees"),
+        ("Add Exam", "add_exam"),
+        ("Record Marks", "record_marks"),
+        ("Monthly Report", "monthly_report"),
+        ("Add Expense", "add_expense"),
+        ("View Expenses", "view_expenses"),
+        ("Timetable", "timetable"),
+    ]
         for label_text, screen_name in nav_buttons:
-            btn = styled_button(label_text, size_hint_y=None, height=50)
-            btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
-            button_scroll_layout.add_widget(btn)
+         btn = styled_button(label_text, size_hint_y=None, height=48)
+         btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
+         body.add_widget(btn)
 
         scroll = ScrollView()
-        scroll.add_widget(button_scroll_layout)
+        scroll.add_widget(body)
         self.layout.add_widget(scroll)
-
         self.add_widget(self.layout)
 
     def on_pre_enter(self):
@@ -133,20 +168,21 @@ class AddStudentScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+        self.layout.add_widget(title_label("Add Student"))
 
-        self.name_input = TextInput(hint_text="Student Name", multiline=False)
+        self.name_input = styled_input("Student Name")
         self.layout.add_widget(self.name_input)
 
-        self.class_input = TextInput(hint_text="Class (e.g. 10th)", multiline=False)
+        self.class_input = styled_input(hint_text="Class (e.g. 10th)")
         self.layout.add_widget(self.class_input)
 
-        self.joining_date_input = TextInput(hint_text="Joining Date (YYYY-MM-DD)", multiline=False)
+        self.joining_date_input = styled_input(hint_text="Joining Date (YYYY-MM-DD)")
         self.layout.add_widget(self.joining_date_input)
 
-        self.contact_input = TextInput(hint_text="Contact Number", multiline=False)
+        self.contact_input = styled_input(hint_text="Contact Number")
         self.layout.add_widget(self.contact_input)
 
-        self.status_input = TextInput(hint_text="Enrollment Status (Active/Inactive)", multiline=False)
+        self.status_input = styled_input(hint_text="Enrollment Status (Active/Inactive)")
         self.layout.add_widget(self.status_input)
 
         self.message_label = Label(text="")
@@ -155,6 +191,9 @@ class AddStudentScreen(Screen):
         save_btn = Button(text="Save Student")
         save_btn.bind(on_press=self.save_student)
         self.layout.add_widget(save_btn)
+
+        save_btn = styled_button("Save Student")
+        back_btn = styled_button("Back to Home", color=ACCENT_COLOR)
 
         back_btn = Button(text="Back to Home")
         back_btn.bind(on_press=self.go_back)
@@ -190,20 +229,21 @@ class EditStudentScreen(Screen):
         super().__init__(**kwargs)
         self.student_id = None
         self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+        self.layout.add_widget(title_label("Edit Student"))
 
-        self.name_input = TextInput(hint_text="Student Name", multiline=False)
+        self.name_input = styled_input("Student Name")
         self.layout.add_widget(self.name_input)
 
-        self.class_input = TextInput(hint_text="Class (e.g. 10th)", multiline=False)
+        self.class_input = styled_input("Class (e.g. 10th)")
         self.layout.add_widget(self.class_input)
 
-        self.joining_date_input = TextInput(hint_text="Joining Date (YYYY-MM-DD)", multiline=False)
+        self.joining_date_input = styled_input("Joining Date (YYYY-MM-DD)")
         self.layout.add_widget(self.joining_date_input)
 
-        self.contact_input = TextInput(hint_text="Contact Number", multiline=False)
+        self.contact_input = styled_input("Contact Number")
         self.layout.add_widget(self.contact_input)
 
-        self.status_input = TextInput(hint_text="Enrollment Status (Active/Inactive)", multiline=False)
+        self.status_input = styled_input("Enrollment Status (Active/Inactive)")
         self.layout.add_widget(self.status_input)
 
         self.message_label = Label(text="")
@@ -212,6 +252,9 @@ class EditStudentScreen(Screen):
         update_btn = Button(text="Update Student")
         update_btn.bind(on_press=self.update_student_action)
         self.layout.add_widget(update_btn)
+
+        update_btn = styled_button("Update Student")
+        back_btn = styled_button("Cancel", color=ACCENT_COLOR)
 
         back_btn = Button(text="Cancel")
         back_btn.bind(on_press=self.go_back)
@@ -253,14 +296,15 @@ class AddBatchScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
+        self.layout.add_widget(title_label("Add Batch"))
 
-        self.batch_name_input = TextInput(hint_text="Batch Name (e.g. Class 10 Physics Evening)", multiline=False)
+        self.batch_name_input = styled_input("Batch Name (e.g. Class 10 Physics Evening)")
         self.layout.add_widget(self.batch_name_input)
 
-        self.subject_input = TextInput(hint_text="Subject", multiline=False)
+        self.subject_input = styled_input("Subject")
         self.layout.add_widget(self.subject_input)
 
-        self.schedule_input = TextInput(hint_text="Schedule (e.g. Mon-Wed-Fri 5-6 PM)", multiline=False)
+        self.schedule_input = styled_input("Schedule (e.g. Mon-Wed-Fri 5-6 PM)")
         self.layout.add_widget(self.schedule_input)
 
         self.message_label = Label(text="")
@@ -269,6 +313,9 @@ class AddBatchScreen(Screen):
         save_btn = Button(text="Save Batch")
         save_btn.bind(on_press=self.save_batch)
         self.layout.add_widget(save_btn)
+
+        save_btn = styled_button("Save Batch")
+        back_btn = styled_button("Back to Home", color=ACCENT_COLOR)
 
         back_btn = Button(text="Back to Home")
         back_btn.bind(on_press=self.go_back)
@@ -304,14 +351,22 @@ class AssignBatchScreen(Screen):
 
         self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
 
-        self.student_label = Label(text="Assign Batch for: ")
+        self.student_label = Label(text="Assign Batch for: ", font_size=18, bold=True, color=(1, 1, 1, 1))
         self.layout.add_widget(self.student_label)
 
-        self.batch_spinner = Spinner(text="Select a Batch", values=[])
+        self.batch_spinner = Spinner(
+    text="Select a Batch",
+    values=[],
+    background_color=ACCENT_COLOR,
+    color=(1, 1, 1, 1)
+)
         self.layout.add_widget(self.batch_spinner)
 
         self.message_label = Label(text="")
         self.layout.add_widget(self.message_label)
+
+        assign_btn = styled_button("Assign Batch")
+        back_btn = styled_button("Back to View Students", color=ACCENT_COLOR)
 
         assign_btn = Button(text="Assign Batch")
         assign_btn.bind(on_press=self.assign_batch_action)
@@ -689,7 +744,7 @@ class ViewBatchesScreen(Screen):
         scroll.add_widget(self.batches_list)
         self.layout.add_widget(scroll)
 
-        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn = styled_button("Back to Home", color=ACCENT_COLOR, size_hint_y=None, height=50)
         back_btn.bind(on_press=self.go_back)
         self.layout.add_widget(back_btn)
 
@@ -704,18 +759,13 @@ class ViewBatchesScreen(Screen):
         batches = get_all_batches()
         for batch_id, batch_name, subject, schedule in batches:
             card = BoxLayout(orientation="vertical", size_hint_y=None, height=140, padding=10, spacing=4)
-            with card.canvas.before:
-                from kivy.graphics import Color, RoundedRectangle
-                Color(0.15, 0.15, 0.2, 1)
-                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
-            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
-            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
+            add_card_background(card)
 
             card.add_widget(Label(text=f"[b]{batch_name}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
             card.add_widget(Label(text=f"Subject: {subject}", size_hint_y=None, height=25))
             card.add_widget(Label(text=f"Schedule: {schedule}", size_hint_y=None, height=25))
 
-            delete_btn = Button(text="Delete", size_hint_y=None, height=45)
+            delete_btn = styled_button("Delete", color=ACCENT_COLOR, size_hint_y=None, height=45)
             delete_btn.bind(on_press=lambda instance, bid=batch_id: self.delete_batch_action(bid))
             card.add_widget(delete_btn)
 
@@ -849,11 +899,11 @@ class ViewStudentsScreen(Screen):
         scroll.add_widget(self.students_list)
         self.layout.add_widget(scroll)
 
-        refresh_btn = Button(text="Refresh List", size_hint_y=None, height=50)
+        refresh_btn = styled_button(text="Refresh List", size_hint_y=None, height=50)
         refresh_btn.bind(on_press=self.load_students)
         self.layout.add_widget(refresh_btn)
 
-        back_btn = Button(text="Back to Home", size_hint_y=None, height=50)
+        back_btn = styled_button(text="Back to Home", size_hint_y=None, height=50)
         back_btn.bind(on_press=self.go_back)
         self.layout.add_widget(back_btn)
 
@@ -871,12 +921,7 @@ class ViewStudentsScreen(Screen):
             batch_name = get_batch_name(batch_id)
 
             card = BoxLayout(orientation="vertical", size_hint_y=None, height=220, padding=10, spacing=4)
-            with card.canvas.before:
-                from kivy.graphics import Color, RoundedRectangle
-                Color(0.15, 0.15, 0.2, 1)
-                card.bg_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[12])
-            card.bind(pos=lambda inst, val: setattr(inst.bg_rect, 'pos', val))
-            card.bind(size=lambda inst, val: setattr(inst.bg_rect, 'size', val))
+            add_card_background(card)
 
             card.add_widget(Label(text=f"[b]{name}[/b]", markup=True, font_size=20, size_hint_y=None, height=30))
             card.add_widget(Label(text=f"Class: {student_class}  |  Batch: {batch_name}", size_hint_y=None, height=25))
@@ -885,23 +930,23 @@ class ViewStudentsScreen(Screen):
 
             button_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=45, spacing=5)
 
-            edit_btn = Button(text="Edit")
+            edit_btn = styled_button("Edit", color=ACCENT_COLOR)
             edit_btn.bind(on_press=lambda instance, sid=student_id: self.edit_student(sid))
             button_row.add_widget(edit_btn)
 
-            assign_btn = Button(text="Batch")
+            assign_btn = styled_button("Batch", color=ACCENT_COLOR)
             assign_btn.bind(on_press=lambda instance, sid=student_id: self.assign_batch(sid))
             button_row.add_widget(assign_btn)
 
-            history_btn = Button(text="History")
+            history_btn = styled_button("History", color=ACCENT_COLOR)
             history_btn.bind(on_press=lambda instance, sid=student_id: self.view_history(sid))
             button_row.add_widget(history_btn)
 
-            progress_btn = Button(text="Progress")
+            progress_btn = styled_button("Progress", color=ACCENT_COLOR)
             progress_btn.bind(on_press=lambda instance, sid=student_id: self.view_progress(sid))
             button_row.add_widget(progress_btn)
 
-            delete_btn = Button(text="Delete")
+            delete_btn = styled_button("Delete", color=ACCENT_COLOR)
             delete_btn.bind(on_press=lambda instance, sid=student_id: self.confirm_delete(sid))
             button_row.add_widget(delete_btn)
 
