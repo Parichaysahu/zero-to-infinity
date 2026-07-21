@@ -86,6 +86,23 @@ def add_card_background(widget, color=CARD_COLOR, radius=12):
     widget.bind(pos=lambda w, *a: setattr(w._bg_rect, 'pos', w.pos))
     widget.bind(size=lambda w, *a: setattr(w._bg_rect, 'size', w.size))
 
+def metric_card(label_text, value_text):
+    """Small stat card: label on top, big bold value below."""
+    card = BoxLayout(orientation="vertical", size_hint_y=None, height=80, padding=[12, 10], spacing=2)
+    add_card_background(card, color=(0.13, 0.13, 0.19, 1))
+
+    label = Label(text=label_text, font_size=12, color=(0.6, 0.6, 0.65, 1),
+                  size_hint_y=None, height=18, halign="left", valign="middle")
+    label.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
+    card.add_widget(label)
+
+    value = Label(text=value_text, font_size=22, bold=True, color=(1, 1, 1, 1),
+                  size_hint_y=None, height=32, halign="left", valign="middle")
+    value.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
+    card.add_widget(value)
+
+    return card
+
 class HomeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -105,7 +122,6 @@ class HomeScreen(Screen):
 
         self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=8, padding=10)
         self.stats_grid.bind(minimum_height=self.stats_grid.setter("height"))
-        add_card_background(self.stats_grid)
         body.add_widget(self.stats_grid)
 
         actions_label = section_label("Actions")
@@ -128,9 +144,18 @@ class HomeScreen(Screen):
         ("Timetable", "timetable"),
     ]
         for label_text, screen_name in nav_buttons:
-         btn = styled_button(label_text, size_hint_y=None, height=48)
+         btn = styled_button(label_text, size_hint_y=None, height=56)
          btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
          body.add_widget(btn)
+
+        footer = Label(
+        text="Zero To Infinity  •  by Prateek Sir",
+        font_size=12,
+        color=(0.4, 0.4, 0.45, 1),
+        size_hint_y=None,
+        height=60
+)
+        body.add_widget(footer)
 
         scroll = ScrollView()
         scroll.add_widget(body)
@@ -149,18 +174,17 @@ class HomeScreen(Screen):
         total_pending = get_total_pending_dues_all()
         present, absent = get_today_attendance_summary()
 
-        stats = [
-            ("Total Students", str(total_students)),
-            ("Total Batches", str(total_batches)),
-            ("Fees Collected", f"₹{total_collected}"),
-            ("Pending Dues", f"₹{total_pending}"),
-            ("Today's Attendance", f"{present} Present / {absent} Absent"),
+        metrics = [
+            ("Students", str(total_students)),
+            ("Collected", f"₹{total_collected:.0f}"),
+            ("Batches", str(total_batches)),
+            ("Pending", f"₹{total_pending:.0f}"),
+            ("Present today", str(present)),
+            ("Absent today", str(absent)),
         ]
 
-        for label_text, value_text in stats:
-            self.stats_grid.add_widget(Label(text=label_text, bold=True, size_hint_y=None, height=30))
-            self.stats_grid.add_widget(Label(text=value_text, size_hint_y=None, height=30))
-
+        for label_text, value_text in metrics:
+            self.stats_grid.add_widget(metric_card(label_text, value_text))
     def go_to_screen(self, screen_name):
         self.manager.current = screen_name
 
