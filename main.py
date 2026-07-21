@@ -57,10 +57,11 @@ def section_label(text):
     """Small uppercase section header, like 'Overview' or 'Actions'."""
     return Label(
         text=text.upper(),
-        font_size=12,
-        color=(0.55, 0.55, 0.6, 1),
+        font_size=17,
+        bold=True,
+        color=(0.75, 0.75, 0.8, 1),
         size_hint_y=None,
-        height=24,
+        height=30,
         halign="left",
         valign="middle"
     )
@@ -88,16 +89,16 @@ def add_card_background(widget, color=CARD_COLOR, radius=12):
 
 def metric_card(label_text, value_text):
     """Small stat card: label on top, big bold value below."""
-    card = BoxLayout(orientation="vertical", size_hint_y=None, height=80, padding=[12, 10], spacing=2)
+    card = BoxLayout(orientation="vertical", size_hint_y=None, height=112, padding=[14, 12], spacing=6)
     add_card_background(card, color=(0.13, 0.13, 0.19, 1))
 
-    label = Label(text=label_text, font_size=12, color=(0.6, 0.6, 0.65, 1),
-                  size_hint_y=None, height=18, halign="left", valign="middle")
+    label = Label(text=label_text, font_size=20, color=(0.75, 0.75, 0.8, 1),
+                  size_hint_y=None, height=26, halign="left", valign="middle")
     label.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
     card.add_widget(label)
 
-    value = Label(text=value_text, font_size=22, bold=True, color=(1, 1, 1, 1),
-                  size_hint_y=None, height=32, halign="left", valign="middle")
+    value = Label(text=value_text, font_size=32, bold=True, color=(1, 1, 1, 1),
+                  size_hint_y=None, height=42, halign="left", valign="middle")
     value.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
     card.add_widget(value)
 
@@ -113,14 +114,14 @@ class HomeScreen(Screen):
         top_bar.add_widget(title_label("Zero To Infinity", size_hint_y=None, height=56))
         self.layout.add_widget(top_bar)
 
-        body = BoxLayout(orientation="vertical", size_hint_y=None, spacing=8, padding=16)
-        body.bind(minimum_height=body.setter("height"))
+        body = BoxLayout(orientation="vertical", size_hint_y=1, spacing=10, padding=16)
+        self.layout.add_widget(body)
 
         overview_label = section_label("Overview")
         overview_label.bind(size=lambda w, s: setattr(w, 'text_size', (s[0], None)))
         body.add_widget(overview_label)
 
-        self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=8, padding=10)
+        self.stats_grid = GridLayout(cols=2, size_hint_y=None, spacing=10, padding=10)
         self.stats_grid.bind(minimum_height=self.stats_grid.setter("height"))
         body.add_widget(self.stats_grid)
 
@@ -143,24 +144,29 @@ class HomeScreen(Screen):
         ("View Expenses", "view_expenses"),
         ("Timetable", "timetable"),
     ]
+        
+        buttons_box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10)
+        buttons_box.bind(minimum_height=buttons_box.setter("height"))
         for label_text, screen_name in nav_buttons:
-         btn = styled_button(label_text, size_hint_y=None, height=56)
-         btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
-         body.add_widget(btn)
+            btn = styled_button(label_text, size_hint_y=None, height=56)
+            btn.bind(on_press=lambda instance, sn=screen_name: self.go_to_screen(sn))
+            buttons_box.add_widget(btn)
+
+        scroll = ScrollView(size_hint_y=1)
+        scroll.add_widget(buttons_box)
+        body.add_widget(scroll)
 
         footer = Label(
-        text="Zero To Infinity  •  by Prateek Sir",
-        font_size=12,
-        color=(0.4, 0.4, 0.45, 1),
-        size_hint_y=None,
-        height=60
-)
-        body.add_widget(footer)
+            text="Zero To Infinity  •  by Prateek Sir",
+            font_size=12,
+            color=(0.4, 0.4, 0.45, 1),
+            size_hint_y=None,
+            height=40
+        )
+        self.layout.add_widget(footer)
 
-        scroll = ScrollView()
-        scroll.add_widget(body)
-        self.layout.add_widget(scroll)
         self.add_widget(self.layout)
+        
 
     def on_pre_enter(self):
         self.load_dashboard_stats()
